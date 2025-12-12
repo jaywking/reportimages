@@ -5,11 +5,13 @@ Small Tkinter utility for Windows that builds a Word document containing clickab
 ## Features
 - Browse a folder and choose one, some, or all discovered images (no subfolders).
 - Resize images in-memory only (Lanczos resampling) to 2.0", 2.25" (default), or 2.5" widths.
-- Each embedded image is wrapped in a hyperlink pointing at the original asset (local file URI or mapped URL).
+- Each embedded image is wrapped in a hyperlink formed from the provided base OneDrive/SharePoint URL plus the filename.
 - Word compression disabled and DPI set to high fidelity for maximum quality.
 
-## Optional URL mapping
-If the chosen folder contains a CSV named `links.csv` (or any `*links*.csv`), the app will use filename→URL pairs from that file. The CSV must have `filename` and `url` columns.
+## Usage notes
+- Enter the Base OneDrive/SharePoint URL (e.g., `https://company.sharepoint.com/sites/project/Shared%20Documents/Photos/`).
+- Supported file types: `.jpg`, `.jpeg`, `.png`, `.heic` (others are silently ignored).
+- Images are listed in the order reported by the operating system; no auto-sorting is applied.
 
 ## Running
 ```bash

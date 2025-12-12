@@ -9,7 +9,7 @@ from typing import Iterable, List
 from PIL import Image
 
 
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".heic"}
 
 
 @dataclass(frozen=True)
@@ -21,19 +21,17 @@ class ImageEntry:
 
 
 def discover_images(folder: Path) -> List[Path]:
-    """Return a sorted list of image paths in *folder*.
+    """Return image paths in *folder* preserving OS order.
 
     Only files with known image extensions are returned. The function does not
     recurse into subdirectories to keep the UI simple and predictable.
     """
 
-    images = [
+    return [
         path
         for path in folder.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     ]
-    images.sort(key=lambda p: p.name.lower())
-    return images
 
 
 def resize_image_to_width(path: Path, target_width_px: int) -> BytesIO:

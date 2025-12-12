@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox
 
 from doc_builder import IMAGE_WIDTH_INCHES_TO_PIXELS, build_document
 from image_utils import ImageEntry, discover_images
-from link_mapping import load_link_mapping, resolve_hyperlink
+from link_mapping import build_hyperlink
 
 
 class ImageWordLinkBuilderApp(tk.Tk):
@@ -17,20 +17,27 @@ class ImageWordLinkBuilderApp(tk.Tk):
         self.geometry("720x600")
 
         self.folder_var = tk.StringVar()
+        self.base_url_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Pick a folder to begin.")
         self.selected_count_var = tk.IntVar(value=0)
+        self.skipped_count_var = tk.IntVar(value=0)
         self.width_var = tk.DoubleVar(value=2.25)
 
         self.image_vars: dict[Path, tk.BooleanVar] = {}
         self.images: list[Path] = []
-        self.link_mapping: dict[str, str] = {}
-
         self._build_layout()
 
     def _build_layout(self) -> None:
         padding = {"padx": 10, "pady": 5}
 
-        # Folder picker row
+        # Base URL and folder picker
+        base_frame = tk.Frame(self)
+        base_frame.pack(fill="x", **padding)
+        tk.Label(base_frame, text="Base OneDrive / SharePoint URL:").pack(side="left")
+        tk.Entry(base_frame, textvariable=self.base_url_var).pack(
+            side="left", fill="x", expand=True, padx=(5, 0)
+        )
+
         folder_frame = tk.Frame(self)
         folder_frame.pack(fill="x", **padding)
         tk.Label(folder_frame, text="Folder:").pack(side="left")
@@ -72,6 +79,8 @@ class ImageWordLinkBuilderApp(tk.Tk):
         status_frame.pack(fill="x", **padding)
         self.selection_label = tk.Label(status_frame, text="0 images selected")
         self.selection_label.pack(side="left")
+        self.skipped_label = tk.Label(status_frame, text="0 skipped", fg="#8a6d1d")
+        self.skipped_label.pack(side="left", padx=(10, 0))
 
         tk.Button(status_frame, text="Select All", command=self._select_all).pack(side="left", padx=5)
         tk.Button(status_frame, text="Clear", command=self._clear_selection).pack(side="left")
@@ -95,10 +104,9 @@ class ImageWordLinkBuilderApp(tk.Tk):
         self.update_idletasks()
 
         self.images = discover_images(folder_path)
-        self.link_mapping, mapping_status = load_link_mapping(folder_path)
 
         self._populate_image_list()
-        self.status_var.set(mapping_status)
+        self.status_var.set("Images loaded.")
 
     def _populate_image_list(self) -> None:
         for child in list(self.images_container.children.values()):
@@ -124,6 +132,8 @@ class ImageWordLinkBuilderApp(tk.Tk):
         selected = sum(1 for var in self.image_vars.values() if var.get())
         self.selected_count_var.set(selected)
         self.selection_label.config(text=f"{selected} images selected")
+        self.skipped_count_var.set(0)
+        self.skipped_label.config(text="0 skipped")
 
     def _select_all(self) -> None:
         for var in self.image_vars.values():
@@ -140,14 +150,29 @@ class ImageWordLinkBuilderApp(tk.Tk):
             messagebox.showwarning("No folder", "Please pick a folder with images first.")
             return
 
-        selected_entries = [
-            ImageEntry(path=path, hyperlink=resolve_hyperlink(path, self.link_mapping))
-            for path, var in self.image_vars.items()
-            if var.get()
-        ]
+        if not any(var.get() for var in self.image_vars.values()):
+            messagebox.showwarning("No images selected", "Select at least one image to continue.")
+            return
+
+        base_url = self.base_url_var.get()
+        selected_entries: list[ImageEntry] = []
+        skipped = 0
+        for path, var in self.image_vars.items():
+            if not var.get():
+                continue
+            hyperlink = build_hyperlink(base_url, path.name)
+            if not hyperlink:
+                skipped += 1
+                continue
+            selected_entries.append(ImageEntry(path=path, hyperlink=hyperlink))
+
+        if skipped:
+            self.skipped_count_var.set(skipped)
+            self.skipped_label.config(text=f"{skipped} skipped")
+            self.status_var.set("Some images were skipped due to missing or invalid hyperlinks.")
 
         if not selected_entries:
-            messagebox.showwarning("No images selected", "Select at least one image to continue.")
+            self.status_var.set("No valid hyperlinks; provide a base URL to continue.")
             return
 
         output_path = filedialog.asksaveasfilename(
@@ -165,7 +190,10 @@ class ImageWordLinkBuilderApp(tk.Tk):
             self.status_var.set("Document creation failed.")
             return
 
-        self.status_var.set(f"Saved Word document to {output_path}")
+        status_message = f"Saved Word document to {output_path}"
+        if skipped:
+            status_message += f" ({skipped} skipped)"
+        self.status_var.set(status_message)
         messagebox.showinfo("Success", "Word document created successfully.")
 
 

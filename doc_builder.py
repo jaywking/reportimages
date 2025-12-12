@@ -35,7 +35,8 @@ def apply_image_preferences(document: Document) -> None:
 
     settings = document.settings.element
     _ensure_setting(settings, "w:doNotCompressPictures", "true")
-    _ensure_setting(settings, "w:defaultImageDpi", "600")
+    # High-fidelity resolution is represented by 0 per WordprocessingML schema.
+    _ensure_setting(settings, "w:defaultImageDpi", "0")
 
 
 def _add_hyperlinked_picture(document: Document, image_stream, width_inches: float, hyperlink: str):
