@@ -16,3 +16,6 @@ Thumbs.db
 
 # Generated documents
 *.docx
+
+# Local app settings
+settings.json

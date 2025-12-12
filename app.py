@@ -6,6 +6,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 from doc_builder import IMAGE_WIDTH_INCHES_TO_PIXELS, build_document
+from config_store import load_settings, save_settings
 from image_utils import ImageEntry, discover_images
 from link_mapping import build_hyperlink
 
@@ -16,8 +17,18 @@ class ImageWordLinkBuilderApp(tk.Tk):
         self.title("Image → Word Link Builder")
         self.geometry("720x600")
 
+        settings = load_settings()
+        last_base_url = settings.get("base_url", "")
+        self.local_root = Path(
+            settings.get("local_root", str(Path.home() / "OneDrive - Paramount"))
+        )
+        self.base_root = settings.get(
+            "base_root",
+            "https://viacom-my.sharepoint.com/personal/jason_king_paramount_com/Documents/",
+        )
+
         self.folder_var = tk.StringVar()
-        self.base_url_var = tk.StringVar()
+        self.base_url_var = tk.StringVar(value=last_base_url)
         self.status_var = tk.StringVar(value="Pick a folder to begin.")
         self.selected_count_var = tk.IntVar(value=0)
         self.skipped_count_var = tk.IntVar(value=0)
@@ -26,6 +37,7 @@ class ImageWordLinkBuilderApp(tk.Tk):
         self.image_vars: dict[Path, tk.BooleanVar] = {}
         self.images: list[Path] = []
         self._build_layout()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_layout(self) -> None:
         padding = {"padx": 10, "pady": 5}
@@ -104,6 +116,10 @@ class ImageWordLinkBuilderApp(tk.Tk):
         self.update_idletasks()
 
         self.images = discover_images(folder_path)
+
+        inferred = self._infer_base_url(folder_path)
+        if inferred:
+            self.base_url_var.set(inferred)
 
         self._populate_image_list()
         self.status_var.set("Images loaded.")
@@ -190,11 +206,45 @@ class ImageWordLinkBuilderApp(tk.Tk):
             self.status_var.set("Document creation failed.")
             return
 
+        save_settings(
+            {
+                "base_url": self.base_url_var.get(),
+                "local_root": str(self.local_root),
+                "base_root": self.base_root,
+            }
+        )
         status_message = f"Saved Word document to {output_path}"
         if skipped:
             status_message += f" ({skipped} skipped)"
         self.status_var.set(status_message)
         messagebox.showinfo("Success", "Word document created successfully.")
+
+    def _on_close(self) -> None:
+        save_settings(
+            {
+                "base_url": self.base_url_var.get(),
+                "local_root": str(self.local_root),
+                "base_root": self.base_root,
+            }
+        )
+        self.destroy()
+
+    def _infer_base_url(self, folder_path: Path) -> str | None:
+        """If folder is under the known OneDrive root, build a base URL automatically."""
+        try:
+            folder_path = folder_path.resolve()
+        except OSError:
+            return None
+
+        try:
+            relative = folder_path.relative_to(self.local_root)
+        except ValueError:
+            return None
+
+        url_path = "/".join(relative.parts)
+        if url_path:
+            url_path += "/"
+        return self.base_root.rstrip("/") + "/" + url_path
 
 
 def main() -> None:
